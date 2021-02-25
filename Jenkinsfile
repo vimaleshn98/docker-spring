@@ -125,7 +125,8 @@ pipeline{
                 success{
                     echo "========Download executed successfully  ${New_Version}========"
                     sshagent(['ubuntu2']){
-                    sh 'scp -r bazinga/*.jar ubuntu@18.236.173.67:/home/ubuntu/artifacts'
+                    // sh 'scp -r bazinga/*.jar ubuntu@18.236.173.67:/home/ubuntu/artifacts'
+                    sh 'ssh -o StrictHostKeyChecking=no ubuntu@18.236.173.67 pwd'
                     }
 
                 }
