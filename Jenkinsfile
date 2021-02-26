@@ -1,154 +1,73 @@
 pipeline{
-    agent any
-    environment{
-        New_Version = '1.0.3'
-    }
-//      triggers {
-//     cron('* * * * *')
-//   }
-    stages{
-        stage("Build"){
-            steps{
-                bat 'mvn -version'
-                bat 'mvn compile'
-            }
-            post{
-                success{
-                    echo "========Maven compile stage executed successfully========"
-                }
-                failure{
-                    echo "========Maven compile stage execution failed========"
-                }
-            }
-        }
-        stage("build & SonarQube analysis") {
-            steps {
-              withSonarQubeEnv('sonarqube') {
-                bat 'mvn verify sonar:sonar'
-              }
-            }
-          }
-
-          stage("Quality gate") {
-            steps {
-                  echo "quality gate "
-            }
-        }
-
-          stage("Test"){
-            steps{
-                echo "Maven Test"
-                bat 'mvn test'
-            }
-            post{
-                success{
-                    junit 'target/surefire-reports/**/*.xml'
-                    echo "========Maven Test stage executed successfully  ${New_Version}========"
-
-                }
-                failure{
-                    echo "========Maven Test stage execution failed========"
-                }
-            }
-        }
-
-        stage("Packaging"){
-            steps{
-                echo "Maven Packaging"
-                bat 'mvn package'
-            }
-            post{
-                success{
-                    archiveArtifacts 'target/*.jar'
-                    echo "========Maven Packaging stage executed successfully  ${New_Version}========"
-
-                }
+  agent any
+  tools{
+       maven 'mymaven'
+       jdk 'JDK11'
+   }
+  stages {
+    stage('Build'){
+       steps {
+                sh'mvn clean package'
+                    
                 
-                failure{
-                    echo "========Maven Packaging stage execution failed========"
-                }
             }
-        }
-          stage("Deployee"){
-           when {
-                expression {
-                        currentBuild.result == null || currentBuild.result == 'SUCCESS'
-                }
-            }
-                steps{
+     }
+    stage('Test'){
+      steps{
+        sh 'mvn test'
+      }
+      }
+     stage('collect artifact'){
+     steps{
+     archiveArtifacts artifacts: 'target/*.jar', followSymlinks: false
+     }
+     }
+     stage('deploy to artifactory')
+     {
+     steps{
      
-                     rtUpload (
-                         serverId: 'artifactory-server',
-                     spec: '''{
-                             "files": [
-                                      {
-                                     "pattern": "target/*.jar",
-                                     "target": "art-doc-dev-loc"
-                                    }
-                                ]
-                            }'''
-                        )
-                    }
-            post{
-                success{
-                    echo "========Deploying executed successfully  ${New_Version}========"
-
-                }
-                
-                failure{
-                    echo "========Deploying stage execution failed========"
-                }
+     rtUpload (
+    serverId: 'artifactory-server',
+    spec: '''{
+          "files": [
+            {
+              "pattern": "target/*.jar",
+              "target": "art-doc-dev-loc"
             }
-        }
-       stage("Download"){
-           when {
-                expression {
-                        currentBuild.result == null || currentBuild.result == 'SUCCESS'
-                }
-            }
-                steps{
+         ]
+    }''',
+ 
+    buildName: 'holyFrog',
+    buildNumber: '42'
+)
+     }}
+     stage('download from artifactory')
+         {
+            steps{
      
-                     
-            rtDownload (
-                         serverId: 'artifactory-server',
-                     spec: '''{
-                             "files": [
-                                      {
-                                      "pattern": "art-doc-dev-loc/Passport-0.0.1-SNAPSHOT.jar",
-                                      "target": "bazinga/"
-                                    }
-                                ]
-                            }'''
-                        )
-                    }
-            post{
-                success{
-                    echo "========Download executed successfully  ${New_Version}========"
-                    sshagent(['ubuntu2']){
-                    // sh 'scp -r bazinga/*.jar ubuntu@18.236.173.67:/home/ubuntu/artifacts'
-                    sh 'ssh -o StrictHostKeyChecking=no ubuntu@18.236.173.67 pwd'
-                    }
+                rtDownload (
+                    serverId: 'artifactory-server',
+                    spec: '''{
+                    "files": [
+                         {
+                             "pattern": "art-doc-dev-loc/",
+                             "target": ""
+                        }
+                     ]
+                }''',
+ 
+)
+     }}
 
-                }
-                
-                failure{
-                    echo "========Download stage execution failed========"
-                }
-            }
+     stage("deploy to ec2"){
+       steps{
+            sshagent(['fb6287dd-0b69-406a-88b3-16309ea4d52a']){
+                    sh 'scp -r /var/jenkins_home/workspace/artifactory-pipeline/target/*.jar ubuntu@18.221.138.29:/home/ubuntu/artifact'
         }
-    }
-    post{
-        always{
-            echo "========Running on ========"
-        }
-        changed{
-                    echo "========Their is change in Packaging from pervious========"
-                }
-        success{
-            echo "========pipeline executed successfully ========"
-        }
-        failure{
-            echo "========pipeline execution failed========"
-        }
-    }
-}
+       }
+     }
+       
+      
+  
+  }
+  }
