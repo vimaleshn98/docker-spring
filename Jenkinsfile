@@ -2,6 +2,7 @@ pipeline{
   agent any
   tools{
        maven 'mymaven'
+       java 'jdk11'
    }
   stages {
     stage('Build'){
@@ -59,11 +60,10 @@ pipeline{
      stage("deploy to ec2"){
        steps{
             sshagent(['f674a595-aa5a-4e23-90fb-eb8ee9341dfe']){
-                    sh 'scp -r /var/jenkins_home/workspace/artifactory-pipeline/target/*.jar ubuntu@54.187.100.82:/home/ubuntu/artifact'
-        }
+                    sh 'scp -r target/*.jar ubuntu@54.190.49.106:/home/ubuntu/artifacts'
        }
      }
-       
+     } 
       
   
   }
